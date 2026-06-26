@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useCallback, useRef } from "react";
 import {
-  ResponsiveContainer, ComposedChart, AreaChart, LineChart, BarChart,
-  Area, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ComposedChart, AreaChart, BarChart,
+  Area, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ReferenceArea,
 } from "recharts";
 import {
   Settings2, TrendingUp, TrendingDown, ShieldAlert, Activity,
-  Gauge, ChevronDown, ChevronUp, Info, RefreshCw, Building2, Coins, HeartPulse,
+  Gauge, Info, RefreshCw, Building2, HeartPulse,
   Download, Upload, Printer, Layers,
 } from "lucide-react";
 
@@ -1114,9 +1114,6 @@ export default function App() {
     e.target.value = "";
   }, []);
 
-  // accessibility / sanity: clamp retireAge
-  const validRetire = p.retireAge > p.currentAge && p.retireAge >= p.accessAge - 0;
-
   const scenarioResults = useMemo(() => {
     return SCENARIOS.map((sc) => {
       const sp = sc.key === "base" ? p : applyScenario(p, sc.key);
@@ -1923,7 +1920,7 @@ function DrawdownTab({ p, det, set }) {
           lasts: r.depletionAge === null,
         };
       }),
-    [p]
+    [p, strategies]
   );
   // rank: survive first, then lowest lifetime tax, then biggest estate
   const ranked = [...runs].sort((a, b) => {
