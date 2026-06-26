@@ -1,0 +1,82 @@
+import React, { useState } from 'react';
+import './App.css';
+
+export default function App() {
+  const [inputs, setInputs] = useState({
+    age: 55,
+    portfolio: 2300000,
+    // ... all your inputs
+  });
+
+  // ... all your calculations (Monte Carlo, tax engine, etc.)
+
+  return (
+    <div className="dashboard">
+      {/* Your form inputs */}
+      {/* Your charts */}
+      {/* Your outputs */}
+    </div>
+  );
+import React, { useState } from 'react';
+import './App.css';
+
+export default function App() {
+  const [inputs, setInputs] = useState({
+    age: 55,
+    portfolio: 2300000,
+    // ... all your inputs
+  });
+
+  // ... all your calculations (Monte Carlo, tax engine, etc.)
+
+  return (
+    <div className="dashboard">
+      {/* Your form inputs */}
+      {/* Your charts */}
+      {/* Your outputs */}
+    </div>
+  );
+}import React, { useState } from 'react';
+import './App.css';
+
+export default function App() {
+  const [inputs, setInputs] = useState({
+    age: 55,
+    portfolio: 2300000,
+    // ... all your inputs
+  });
+
+  // ... all your calculations (Monte Carlo, tax engine, etc.)
+
+  return (
+    <div className="dashboard">
+      {/* Your form inputs */}
+      {/* Your charts */}
+      {/* Your outputs */}
+    </div>
+  );
+}import logo from './logo.svg';
+import './App.css';
+
+function App() {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <img src={logo} className="App-logo" alt="logo" />
+        <p>
+          Edit <code>src/App.js</code> and save to reload.
+        </p>
+        <a
+          className="App-link"
+          href="https://reactjs.org"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Learn React
+        </a>
+      </header>
+    </div>
+  );
+}
+
+export default App;
