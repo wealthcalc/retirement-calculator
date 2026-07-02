@@ -1,19 +1,19 @@
-import React, { useMemo, useState, useCallback, useRef } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
-  ResponsiveContainer, ComposedChart, AreaChart, BarChart,
-  Area, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ComposedChart, AreaChart, LineChart, BarChart,
+  Area, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ReferenceArea,
 } from "recharts";
 import {
   Settings2, TrendingUp, TrendingDown, ShieldAlert, Activity,
-  Gauge, Info, RefreshCw, Building2, HeartPulse,
-  Download, Upload, Printer, Layers,
+  Gauge, ChevronDown, ChevronUp, Info, RefreshCw, Building2, Coins, HeartPulse,
+  Download, Upload, Sun, Moon, Layers,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
-/*  Design tokens                                                      */
+/*  Design tokens — resolved via CSS variables so the theme can swap    */
 /* ------------------------------------------------------------------ */
-const T = {
+const LIGHT = {
   paper: "#F4F6F2",
   surface: "#FFFFFF",
   ink: "#16202C",
@@ -30,6 +30,49 @@ const T = {
   red: "#B23A3A",
   redSoft: "#F4E2E0",
   gold: "#8F7327",
+};
+const DARK = {
+  paper: "#0E141A",
+  surface: "#171F28",
+  ink: "#E7ECF0",
+  ink2: "#AFB9C3",
+  muted: "#8592A0",
+  line: "#2A3540",
+  lineSoft: "#212B35",
+  green: "#37B481",
+  greenSoft: "#15281F",
+  blue: "#5B94C6",
+  blueSoft: "#152532",
+  amber: "#D89B3F",
+  amberSoft: "#2C2413",
+  red: "#D45E5E",
+  redSoft: "#2E1B1B",
+  gold: "#C6A24E",
+};
+const T = Object.fromEntries(Object.keys(LIGHT).map((k) => [k, `var(--t-${k})`]));
+const themeVars = (obj) => Object.entries(obj).map(([k, v]) => `--t-${k}:${v};`).join("");
+const THEME_CSS = `[data-theme="light"]{${themeVars(LIGHT)}}[data-theme="dark"]{${themeVars(DARK)}}`;
+
+/* ------------------------------------------------------------------ */
+/*  Local persistence (safe: no-ops if storage is unavailable)          */
+/* ------------------------------------------------------------------ */
+const INPUT_KEY = "uk-retirement-planner:inputs";
+const THEME_KEY = "uk-retirement-planner:theme";
+const store = {
+  get(key) {
+    try {
+      return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  },
+  set(key, val) {
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem(key, val);
+    } catch {
+      /* storage blocked (e.g. sandboxed preview) — ignore */
+    }
+  },
 };
 const MONO = "ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, system-ui, sans-serif";
@@ -988,6 +1031,7 @@ function tooltipStyle() {
     borderRadius: 10,
     fontSize: 12,
     fontFamily: SANS,
+    color: T.ink,
     boxShadow: "0 4px 16px rgba(0,0,0,.08)",
   };
 }
@@ -995,82 +1039,115 @@ function tooltipStyle() {
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
+const DEFAULTS = {
+  region: "ruk",
+  currentAge: 45,
+  retireAge: 60,
+  spaAge: 67,
+  accessAge: 57,
+  planAge: 95,
+  salary: 75000,
+  salaryGrowth: 2.5,
+  startPot: 250000,
+  empPct: 8,
+  erPct: 5,
+  fixedContrib: 0,
+  growthPre: 6,
+  growthPost: 4.5,
+  inflation: 3,
+  inflMode: "cpi", // 'cpi' | 'rpi' | 'custom'
+  rpiWedge: 1,
+  fee: 0.5, // platform + fund AUM drag %
+  vol: 13,
+  includeState: true,
+  statePension: 11973,
+  targetMode: "ratio",
+  replacementRatio: 67,
+  targetAbsolute: 35000,
+  // tax-free cash treatment
+  tfcMode: "ufpls", // 'ufpls' | 'pcls'
+  // ISA / GIA / LISA wrappers
+  isaStart: 90000,
+  isaContrib: 8000,
+  giaStart: 40000,
+  giaContrib: 0,
+  lisaStart: 12000,
+  lisaContrib: 4000,
+  // state pension uprating
+  tripleLock: true,
+  earningsGrowth: 3.5,
+  // DB / final-salary
+  dbEnabled: false,
+  dbPension: 0,
+  dbIndex: "cpi", // 'cpi' | 'rpi' | 'fixed'
+  dbFixedRate: 3,
+  // drawdown sequencing
+  drawStrategy: "taxopt",
+  // variable spending
+  spendProfile: "flat", // flat | smile | decline | custom
+  goGoUntil: 75,
+  slowGoUntil: 85,
+  goGoPct: 110,
+  slowGoPct: 90,
+  noGoPct: 80,
+  // annuity
+  annuityEnabled: false,
+  annuityAge: 70,
+  annuityPortion: 30,
+  annuityEscalation: "level", // level | esc3 | rpi
+  // buy-to-let
+  btlEnabled: false,
+  btlValue: 350000,
+  btlMortgage: 180000,
+  btlRate: 5.5,
+  btlYield: 5.5,
+  btlMaint: 12,
+  btlMgmt: 10,
+  btlVoid: 5,
+  btlGrowth: 3,
+  btlRentGrowth: 3,
+  btlClearAge: 0, // 0 = interest-only forever
+  btlBaseCost: 350000, // original purchase price (for CGT)
+  btlSellAge: 0, // 0 = never sell (hold for life)
+  // longevity
+  sex: "male",
+  healthy: true,
+};
+
 export default function App() {
-  const [p, setP] = useState({
-    region: "ruk",
-    currentAge: 45,
-    retireAge: 60,
-    spaAge: 67,
-    accessAge: 57,
-    planAge: 95,
-    salary: 75000,
-    salaryGrowth: 2.5,
-    startPot: 250000,
-    empPct: 8,
-    erPct: 5,
-    fixedContrib: 0,
-    growthPre: 6,
-    growthPost: 4.5,
-    inflation: 3,
-    inflMode: "cpi", // 'cpi' | 'rpi' | 'custom'
-    rpiWedge: 1,
-    fee: 0.5, // platform + fund AUM drag %
-    vol: 13,
-    includeState: true,
-    statePension: 11973,
-    targetMode: "ratio",
-    replacementRatio: 67,
-    targetAbsolute: 35000,
-    // tax-free cash treatment
-    tfcMode: "ufpls", // 'ufpls' | 'pcls'
-    // ISA / GIA / LISA wrappers
-    isaStart: 90000,
-    isaContrib: 8000,
-    giaStart: 40000,
-    giaContrib: 0,
-    lisaStart: 12000,
-    lisaContrib: 4000,
-    // state pension uprating
-    tripleLock: true,
-    earningsGrowth: 3.5,
-    // DB / final-salary
-    dbEnabled: false,
-    dbPension: 0,
-    dbIndex: "cpi", // 'cpi' | 'rpi' | 'fixed'
-    dbFixedRate: 3,
-    // drawdown sequencing
-    drawStrategy: "taxopt",
-    // variable spending
-    spendProfile: "flat", // flat | smile | decline | custom
-    goGoUntil: 75,
-    slowGoUntil: 85,
-    goGoPct: 110,
-    slowGoPct: 90,
-    noGoPct: 80,
-    // annuity
-    annuityEnabled: false,
-    annuityAge: 70,
-    annuityPortion: 30,
-    annuityEscalation: "level", // level | esc3 | rpi
-    // buy-to-let
-    btlEnabled: false,
-    btlValue: 350000,
-    btlMortgage: 180000,
-    btlRate: 5.5,
-    btlYield: 5.5,
-    btlMaint: 12,
-    btlMgmt: 10,
-    btlVoid: 5,
-    btlGrowth: 3,
-    btlRentGrowth: 3,
-    btlClearAge: 0, // 0 = interest-only forever
-    btlBaseCost: 350000, // original purchase price (for CGT)
-    btlSellAge: 0, // 0 = never sell (hold for life)
-    // longevity
-    sex: "male",
-    healthy: true,
+  const [p, setP] = useState(() => {
+    const saved = store.get(INPUT_KEY);
+    if (saved) {
+      try {
+        const obj = JSON.parse(saved);
+        if (obj && typeof obj === "object") return { ...DEFAULTS, ...obj };
+      } catch {
+        /* corrupt — fall back to defaults */
+      }
+    }
+    return DEFAULTS;
   });
   const set = useCallback((k, v) => setP((x) => ({ ...x, [k]: v })), []);
+
+  // persist inputs locally so a refresh keeps them
+  useEffect(() => {
+    store.set(INPUT_KEY, JSON.stringify(p));
+  }, [p]);
+
+  const [theme, setTheme] = useState(() => {
+    const saved = store.get(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+    try {
+      return typeof matchMedia !== "undefined" && matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    } catch {
+      return "light";
+    }
+  });
+  useEffect(() => {
+    store.set(THEME_KEY, theme);
+  }, [theme]);
 
   const [tab, setTab] = useState("overview");
   const [panelOpen, setPanelOpen] = useState(true);
@@ -1114,6 +1191,9 @@ export default function App() {
     e.target.value = "";
   }, []);
 
+  // accessibility / sanity: clamp retireAge
+  const validRetire = p.retireAge > p.currentAge && p.retireAge >= p.accessAge - 0;
+
   const scenarioResults = useMemo(() => {
     return SCENARIOS.map((sc) => {
       const sp = sc.key === "base" ? p : applyScenario(p, sc.key);
@@ -1152,21 +1232,18 @@ export default function App() {
   /* ---------------------------------------------------------------- */
   return (
     <div
+      data-theme={theme}
       style={{
         background: T.paper,
         minHeight: "100vh",
         fontFamily: SANS,
         color: T.ink,
+        transition: "background 120ms ease, color 120ms ease",
       }}
     >
       <style>{`
+        ${THEME_CSS}
         @media (max-width: 880px){ .rp-grid{ grid-template-columns: 1fr !important; } .rp-panel{ position: static !important; max-height: none !important; } }
-        @media print {
-          .rp-noprint, .rp-panel { display: none !important; }
-          .rp-grid { grid-template-columns: 1fr !important; }
-          body { background: #fff !important; }
-          .rp-tab { display: none !important; }
-        }
         input[type=range]{ height: 4px; }
         .rp-tab:hover{ color:${T.ink} !important; }
         ::-webkit-scrollbar{ width:8px; height:8px;}
@@ -1194,7 +1271,7 @@ export default function App() {
                 height: 30,
                 borderRadius: 8,
                 background: T.ink,
-                color: "#fff",
+                color: T.paper,
                 display: "grid",
                 placeItems: "center",
                 fontFamily: MONO,
@@ -1228,12 +1305,13 @@ export default function App() {
             <Upload size={14} /> Load
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={loadInputs} />
-          <button onClick={() => window.print()} style={hdrBtn}>
-            <Printer size={14} /> PDF
+          <button onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} style={hdrBtn} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle colour theme">
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            {theme === "dark" ? "Light" : "Dark"}
           </button>
           <button
             onClick={() => setPanelOpen((o) => !o)}
-            style={{ ...hdrBtn, background: T.ink, color: "#fff", border: "none" }}
+            style={{ ...hdrBtn, background: T.ink, color: T.paper, border: "none" }}
           >
             <Settings2 size={14} /> Assumptions
           </button>
@@ -1920,7 +1998,7 @@ function DrawdownTab({ p, det, set }) {
           lasts: r.depletionAge === null,
         };
       }),
-    [p, strategies]
+    [p]
   );
   // rank: survive first, then lowest lifetime tax, then biggest estate
   const ranked = [...runs].sort((a, b) => {
@@ -1942,6 +2020,7 @@ function DrawdownTab({ p, det, set }) {
       state: d.stateReal || 0,
       db: d.dbReal || 0,
       annuity: d.annuityReal || 0,
+      btl: d.btlNetReal || 0,
     }));
 
   return (
@@ -1968,7 +2047,7 @@ function DrawdownTab({ p, det, set }) {
         {p.drawStrategy !== best.key && (
           <button
             onClick={() => set("drawStrategy", best.key)}
-            style={{ marginTop: 12, background: T.ink, color: "#fff", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+            style={{ marginTop: 12, background: T.ink, color: T.paper, border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
           >
             Switch to "{best.label}"
           </button>
@@ -2011,15 +2090,16 @@ function DrawdownTab({ p, det, set }) {
             <CartesianGrid stroke={T.lineSoft} vertical={false} />
             <XAxis dataKey="age" tick={{ fontSize: 11, fill: T.muted }} tickLine={false} axisLine={{ stroke: T.line }} interval={3} />
             <YAxis tickFormatter={gbpK} tick={{ fontSize: 11, fill: T.muted }} tickLine={false} axisLine={false} width={52} />
-            <Tooltip contentStyle={tooltipStyle()} formatter={(v, n) => [gbp(v), { pension: "Pension", bridge: "ISA/GIA/LISA", state: "State Pension", db: "DB pension", annuity: "Annuity" }[n]]} labelFormatter={(a) => `Age ${a}`} />
+            <Tooltip contentStyle={tooltipStyle()} formatter={(v, n) => [gbp(v), { pension: "Pension", bridge: "ISA/GIA/LISA", state: "State Pension", db: "DB pension", annuity: "Annuity", btl: "BTL net rent" }[n]]} labelFormatter={(a) => `Age ${a}`} />
             <Bar dataKey="bridge" stackId="a" fill={T.gold} name="bridge" />
             <Bar dataKey="pension" stackId="a" fill={T.green} name="pension" />
             <Bar dataKey="annuity" stackId="a" fill="#7A5C9E" name="annuity" />
+            {det.btlEnabled && <Bar dataKey="btl" stackId="a" fill="#B0884E" name="btl" />}
             <Bar dataKey="db" stackId="a" fill={T.ink2} name="db" />
             <Bar dataKey="state" stackId="a" fill={T.blue} name="state" />
           </BarChart>
         </ResponsiveContainer>
-        <Legendlet items={[{ c: T.gold, t: "ISA/GIA/LISA" }, { c: T.green, t: "Pension" }, { c: "#7A5C9E", t: "Annuity" }, { c: T.ink2, t: "DB" }, { c: T.blue, t: "State" }]} />
+        <Legendlet items={[{ c: T.gold, t: "ISA/GIA/LISA" }, { c: T.green, t: "Pension" }, { c: "#7A5C9E", t: "Annuity" }, ...(det.btlEnabled ? [{ c: "#B0884E", t: "BTL rent" }] : []), { c: T.ink2, t: "DB" }, { c: T.blue, t: "State" }]} />
       </Card>
 
       <Note tone="blue">
@@ -2038,7 +2118,7 @@ function BtlTab({ p, det, set }) {
         <p style={{ marginTop: 12, fontSize: 14 }}>No buy-to-let in the plan yet.</p>
         <button
           onClick={() => set("btlEnabled", true)}
-          style={{ marginTop: 4, background: T.ink, color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+          style={{ marginTop: 4, background: T.ink, color: T.paper, border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
         >
           Add a BTL property
         </button>
@@ -2309,7 +2389,7 @@ function AdequacyTab({ p, mc, running, runMC, det, life, set }) {
             </span>
             <button
               onClick={() => set("planAge", life.q10)}
-              style={{ background: T.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
+              style={{ background: T.ink, color: T.paper, border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
             >
               Plan to age {life.q10}
             </button>
@@ -2330,7 +2410,7 @@ function AdequacyTab({ p, mc, running, runMC, det, life, set }) {
             disabled={running}
             style={{
               display: "flex", alignItems: "center", gap: 8,
-              background: T.ink, color: "#fff", border: "none", borderRadius: 10,
+              background: T.ink, color: T.paper, border: "none", borderRadius: 10,
               padding: "11px 18px", fontWeight: 600, fontSize: 14, cursor: running ? "wait" : "pointer",
             }}
           >
@@ -2378,7 +2458,7 @@ function AdequacyTab({ p, mc, running, runMC, det, life, set }) {
                 <Tooltip contentStyle={tooltipStyle()} formatter={(v, n) => [gbp(v), n === "p90" ? "Lucky (90th)" : n === "p50" ? "Median" : "Unlucky (10th)"]} labelFormatter={(a) => `Age ${a}`} />
                 <ReferenceLine x={p.retireAge} stroke={T.amber} strokeDasharray="4 3" />
                 <Area type="monotone" dataKey="p90" stroke="none" fill="url(#fan)" />
-                <Area type="monotone" dataKey="p10" stroke="none" fill="#fff" />
+                <Area type="monotone" dataKey="p10" stroke="none" fill={T.surface} />
                 <Line type="monotone" dataKey="p50" stroke={T.green} strokeWidth={2.4} dot={false} />
                 <Line type="monotone" dataKey="p10" stroke={T.amber} strokeWidth={1} strokeDasharray="3 3" dot={false} />
                 <Line type="monotone" dataKey="p90" stroke={T.green} strokeWidth={1} strokeDasharray="3 3" dot={false} />
